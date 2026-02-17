@@ -6,6 +6,32 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
+
+# Enums
+
+class Visibility(str, Enum):
+    PUBLIC = "PUBLIC"
+    PRIVATE = "PRIVATE"
+
+
+class PermissionLevel(str, Enum):
+    VIEW_ONLY = "VIEW_ONLY"
+    COLLABORATIVE = "COLLABORATIVE"
+
+
+class TimeDisplayPreference(str, Enum):
+    WORLD = "WORLD"
+    LOCAL = "LOCAL"
+    BOTH = "BOTH"
+
+
+class TimeRangeType(str, Enum):
+    DAY = "DAY"
+    WEEK = "WEEK"
+    MONTH = "MONTH"
+    YEAR = "YEAR"
+
 
 class Command(ABC):
     @abstractmethod
@@ -42,38 +68,41 @@ class Menu:
             else:
                 print("Invalid choice.")
 
+class TimeRangeStrategy(ABC):
+    @abstractmethod
+    def window(self, anchor: WorldClockTime) -> tuple[int, int]:
+        ...
 
-# =========================
-# Enums
-# =========================
+class DayRange(TimeRangeStrategy):
+    def window(self, anchor: WorldClockTime) -> tuple[int, int]:
+        start = anchor.day * 24 * 60
+        return start, start + 24 * 60
 
-class Visibility(str, Enum):
-    PUBLIC = "PUBLIC"
-    PRIVATE = "PRIVATE"
+class WeekRange(TimeRangeStrategy):
+    def window(self, anchor: WorldClockTime) -> tuple[int, int]:
+        start = anchor.day * 24 * 60
+        return start, start + 7 * 24 * 60
+
+class MonthRange(TimeRangeStrategy):
+    def window(self, anchor: WorldClockTime) -> tuple[int, int]:
+        start = anchor.day * 24 * 60
+        return start, start + 30 * 24 * 60
+
+class YearRange(TimeRangeStrategy):
+    def window(self, anchor: WorldClockTime) -> tuple[int, int]:
+        start = anchor.day * 24 * 60
+        return start, start + 365 * 24 * 60
+
+RANGE_STRATEGIES: dict[TimeRangeType, TimeRangeStrategy] = {
+    TimeRangeType.DAY: DayRange(),
+    TimeRangeType.WEEK: WeekRange(),
+    TimeRangeType.MONTH: MonthRange(),
+    TimeRangeType.YEAR: YearRange(),
+}
 
 
-class PermissionLevel(str, Enum):
-    VIEW_ONLY = "VIEW_ONLY"
-    COLLABORATIVE = "COLLABORATIVE"
 
-
-class TimeDisplayPreference(str, Enum):
-    WORLD = "WORLD"
-    LOCAL = "LOCAL"
-    BOTH = "BOTH"
-
-
-class TimeRangeType(str, Enum):
-    DAY = "DAY"
-    WEEK = "WEEK"
-    MONTH = "MONTH"
-    YEAR = "YEAR"
-
-
-# =========================
 # Time Model
-# =========================
-
 @dataclass(frozen=True)
 class WorldClockTime:
     day: int
@@ -104,10 +133,7 @@ class WorldClockTime:
     def __str__(self) -> str:
         return f"Day {self.day} {self.hour:02d}:{self.minute:02d}"
 
-
-# =========================
 # Realm / Settings
-# =========================
 
 @dataclass
 class RealmTimeRule:
@@ -140,9 +166,7 @@ class Settings:
         self.time_display = pref
 
 
-# =========================
 # RPG Domain
-# =========================
 
 @dataclass
 class InventoryItem:
@@ -180,10 +204,7 @@ class InventoryChange:
     delta_qty: int
     target_char_id: Optional[str] = None
 
-
-# =========================
 # Sharing
-# =========================
 
 @dataclass
 class Share:
@@ -191,10 +212,7 @@ class Share:
     permission: PermissionLevel
 
 
-# =========================
 # QuestEvent / Campaign / User
-# =========================
-
 @dataclass
 class QuestEvent:
     event_id: str
@@ -272,9 +290,7 @@ class User:
     character_ids: List[str] = field(default_factory=list)
 
 
-# =========================
 # Storage / App
-# =========================
 
 def _safe_int(prompt: str, min_v: Optional[int] = None, max_v: Optional[int] = None) -> int:
     while True:
@@ -1003,21 +1019,10 @@ class GuildQuestApp:
             print(f"- {e.event_id}: {e.name} @ {t}")
 
     def _get_campaign_events_by_range(self, camp: Campaign, range_type: TimeRangeType, anchor: WorldClockTime) -> List[QuestEvent]:
-        start_day_minutes = anchor.day * 24 * 60  # simple
-        if range_type == TimeRangeType.DAY:
-            start = start_day_minutes
-            end = start + 24 * 60
-        elif range_type == TimeRangeType.WEEK:
-            start = start_day_minutes
-            end = start + 7 * 24 * 60
-        elif range_type == TimeRangeType.MONTH:
-            start = start_day_minutes
-            end = start + 30 * 24 * 60
-        else:  # YEAR
-            start = start_day_minutes
-            end = start + 365 * 24 * 60
+        strat = RANGE_STRATEGIES[range_type]
+        start, end = strat.window(anchor)
 
-        collected: List[QuestEvent] = []
+        collected = []
         for eid in camp.quest_event_ids:
             e = self.events.get(eid)
             if not e:
@@ -1025,9 +1030,10 @@ class GuildQuestApp:
             m = e.start_time.to_minutes()
             if start <= m < end:
                 collected.append(e)
+
         collected.sort(key=lambda ev: ev.start_time.to_minutes())
         return collected
-
+    
     # ---------- Shared Events listing (event share without campaign share) ----------
     def list_events_shared_with_me(self) -> None:
         user = self.require_login()
