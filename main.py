@@ -787,22 +787,7 @@ class GuildQuestApp:
             return
         e = self.events[eid]
         while True:
-            realm = self.realms.get(e.realm_id)
-            rname = realm.name if realm else e.realm_id
-            print(f"\n--- Event {eid}: {e.name} ---")
-            print(f"Start: {e.start_time} | End: {e.end_time if e.end_time else '(none)'} | Realm: {rname}")
-            print(f"Participants: {e.participant_char_ids}")
-            print(f"Shares: {[(s.shared_with_user, s.permission.value) for s in e.shares]}")
-            print(f"InventoryChanges: {[(chg.item.name, chg.delta_qty, chg.target_char_id) for chg in e.inventory_changes]}")
-            print("1) Rename")
-            print("2) Edit start time")
-            print("3) Edit end time")
-            print("4) Change realm")
-            print("5) Edit participants")
-            print("6) Share event")
-            print("7) Unshare event")
-            print("8) Edit inventory changes")
-            print("0) Back")
+            self._print_event_menu(eid, e)
             c = input("Choose: ").strip()
             if c == "1":
                 e.name = input("New name: ").strip() or e.name
@@ -825,6 +810,25 @@ class GuildQuestApp:
                 self._edit_event_inventory_changes(e)
             elif c == "0":
                 return
+
+    def _print_event_menu(self, eid: str, e: QuestEvent) -> None:
+        realm = self.realms.get(e.realm_id)
+        rname = realm.name if realm else e.realm_id
+        print(f"\n--- Event {eid}: {e.name} ---")
+        print(f"Start: {e.start_time} | End: {e.end_time if e.end_time else '(none)'} | Realm: {rname}")
+        print(f"Participants: {e.participant_char_ids}")
+        print(f"Shares: {[(s.shared_with_user, s.permission.value) for s in e.shares]}")
+        print(f"InventoryChanges: {[(chg.item.name, chg.delta_qty, chg.target_char_id) for chg in e.inventory_changes]}")
+        print("1) Rename")
+        print("2) Edit start time")
+        print("3) Edit end time")
+        print("4) Change realm")
+        print("5) Edit participants")
+        print("6) Share event")
+        print("7) Unshare event")
+        print("8) Edit inventory changes")
+        print("0) Back")
+
 
     def _edit_event_participants(self, e: QuestEvent) -> None:
         user = self.require_login()
