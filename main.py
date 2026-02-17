@@ -321,6 +321,17 @@ def _safe_int(prompt: str, min_v: Optional[int] = None, max_v: Optional[int] = N
         except ValueError:
             print("Please enter an integer.")
 
+def _read_day(prompt: str = "  day (>=0): ") -> int:
+    return _safe_int(prompt, 0, None)
+
+def _read_hour(prompt: str = "  hour (0-23): ") -> int:
+    return _safe_int(prompt, 0, 23)
+
+def _read_minute(prompt: str = "  minute (0-59): ") -> int:
+    return _safe_int(prompt, 0, 59)
+
+def _read_level(prompt: str = "Level (>=1): ") -> int:
+    return _safe_int(prompt, 1, None)
 
 def _pick_from_list(title: str, items: List[Tuple[str, str]]) -> Optional[str]:
     """
@@ -342,10 +353,11 @@ def _pick_from_list(title: str, items: List[Tuple[str, str]]) -> Optional[str]:
 
 def _parse_time(label: str) -> WorldClockTime:
     print(f"Enter {label} time:")
-    day = _safe_int("  day (>=0): ", 0, None)
-    hour = _safe_int("  hour (0-23): ", 0, 23)
-    minute = _safe_int("  minute (0-59): ", 0, 59)
+    day = _read_day()
+    hour = _read_hour()
+    minute = _read_minute()
     return WorldClockTime(day, hour, minute)
+
 
 
 class GuildQuestApp:
@@ -631,7 +643,7 @@ class GuildQuestApp:
         cid = self._new_id("char", "C")
         name = input("Character name: ").strip()
         cls = input("Class: ").strip()
-        level = _safe_int("Level (>=1): ", 1, None)
+        level = _read_level()
         ch = Character(char_id=cid, name=name or cid, class_name=cls or "Adventurer", level=level)
         self.characters[cid] = ch
         user.character_ids.append(cid)
@@ -765,6 +777,7 @@ class GuildQuestApp:
             elif c == "0":
                 return
 
+    
     def _prompt_existing_username(self, prompt: str) -> Optional[str]:
         username = input(prompt).strip()
         if username not in self.users:
