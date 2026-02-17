@@ -721,25 +721,31 @@ class GuildQuestApp:
         user.campaign_ids.append(cid)
         print(f"Created campaign {cid}: {camp.name}")
 
-    def _pick_campaign_i_can_view(self, user: User) -> Optional[str]:
-        items = []
-        for cid, camp in self.campaigns.items():
-            if camp.can_view(user.username):
-                items.append((cid, f"{cid} {camp.name} (owner={camp.owner_username}, vis={camp.visibility.value})"))
-        return _pick_from_list("Pick a campaign you can view:", items)
+    from typing import Callable
 
-    def _pick_campaign_i_can_edit(self, user: User) -> Optional[str]:
-        items = []
+    def _pick_campaign(
+        self,
+        user: User,
+        title: str,
+        can_include: Callable[[Campaign], bool],
+    ) -> Optional[str]:
+        items: List[Tuple[str, str]] = []
         for cid, camp in self.campaigns.items():
-            if camp.can_edit(user.username):
-                items.append((cid, f"{cid} {camp.name} (owner={camp.owner_username}, vis={camp.visibility.value})"))
-        return _pick_from_list("Pick a campaign you can edit:", items)
-
+            if can_include(camp):
+                items.append(
+                    (cid, f"{cid} {camp.name} (owner={camp.owner_username}, vis={camp.visibility.value})")
+                )
+        return _pick_from_list(title, items)
+    
     def edit_campaign(self) -> None:
         user = self.require_login()
         if not user:
             return
-        cid = self._pick_campaign_i_can_edit(user)
+        cid = self._pick_campaign(
+            user,
+            "Pick a campaign you can edit:",
+            lambda camp: camp.can_edit(user.username),
+        )        
         if not cid:
             return
         camp = self.campaigns[cid]
@@ -777,7 +783,7 @@ class GuildQuestApp:
             elif c == "0":
                 return
 
-    
+
     def _prompt_existing_username(self, prompt: str) -> Optional[str]:
         username = input(prompt).strip()
         if username not in self.users:
