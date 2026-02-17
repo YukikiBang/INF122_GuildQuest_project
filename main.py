@@ -4,6 +4,43 @@ import json
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+class Command(ABC):
+    @abstractmethod
+    def execute(self, app: "GuildQuestApp") -> None:
+        ...
+
+@dataclass(frozen=True)
+class SimpleCommand(Command):
+    fn_name: str
+    def execute(self, app: "GuildQuestApp") -> None:
+        getattr(app, self.fn_name)()
+
+class ExitCommand(Command):
+    def execute(self, app: "GuildQuestApp") -> None:
+        print("Bye!")
+        raise SystemExit
+
+@dataclass
+class Menu:
+    title: str
+    commands: dict[str, tuple[str, Command]]  # key -> (label, command)
+
+    def run(self, app: "GuildQuestApp") -> None:
+        while True:
+            print("\n==============================")
+            print(self.title)
+            print("==============================")
+            for key, (label, _) in self.commands.items():
+                print(f"{key}) {label}")
+            cmd = input("Choose: ").strip()
+            if cmd in self.commands:
+                _, command = self.commands[cmd]
+                command.execute(app)
+            else:
+                print("Invalid choice.")
 
 
 # =========================
@@ -1010,47 +1047,29 @@ class GuildQuestApp:
             rname = realm.name if realm else e.realm_id
             print(f"- {e.event_id}: {e.name} realm={rname} start={e.start_time} perm={perm.value}")
 
-
+                    
     def run(self) -> None:
         self.ensure_default_realm()
-        while True:
-            print("\n==============================")
-            print("GuildQuest CLI")
-            print("==============================")
-            print(f"Current user: {self.current_user if self.current_user else '(none)'}")
-            print("1) Create user")
-            print("2) Login")
-            print("3) Realms (list/create)")
-            print("4) Settings")
-            print("5) Characters")
-            print("6) Campaigns (my/visible/create/edit)")
-            print("7) Events shared with me")
-            print("8) Save")
-            print("9) Load")
-            print("0) Exit")
-            cmd = input("Choose: ").strip()
+        main_menu = Menu(
+            title="GuildQuest CLI",
+            commands={
+                "1": ("Create user", SimpleCommand("create_user")),
+                "2": ("Login", SimpleCommand("login")),
+                "3": ("Realms (list/create)", SimpleCommand("menu_realms")),
+                "4": ("Settings", SimpleCommand("edit_settings")),
+                "5": ("Characters", SimpleCommand("menu_characters")),
+                "6": ("Campaigns (my/visible/create/edit)", SimpleCommand("menu_campaigns")),
+                "7": ("Events shared with me", SimpleCommand("list_events_shared_with_me")),
+                "8": ("Save", SimpleCommand("save")),
+                "9": ("Load", SimpleCommand("load")),
+                "0": ("Exit", ExitCommand()),
+            }
+        )
+        try:
+            main_menu.run(self)
+        except SystemExit:
+            return
 
-            if cmd == "1":
-                self.create_user()
-            elif cmd == "2":
-                self.login()
-            elif cmd == "3":
-                self.menu_realms()
-            elif cmd == "4":
-                self.edit_settings()
-            elif cmd == "5":
-                self.menu_characters()
-            elif cmd == "6":
-                self.menu_campaigns()
-            elif cmd == "7":
-                self.list_events_shared_with_me()
-            elif cmd == "8":
-                self.save()
-            elif cmd == "9":
-                self.load()
-            elif cmd == "0":
-                print("Bye!")
-                return
 
     def menu_realms(self) -> None:
         while True:
