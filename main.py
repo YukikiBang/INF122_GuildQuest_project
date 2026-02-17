@@ -779,8 +779,12 @@ class GuildQuestApp:
             return None
         return PermissionLevel[p]
 
-    def _share_campaign(self, camp: Campaign) -> None:
-        to_user = self._prompt_existing_username("Share with username: ")
+    def _apply_share(self, shareable, label: str) -> None:
+        """
+        Consolidates duplicated share flow for both Campaign and QuestEvent.
+        shareable: any object that has share_with(username, permission)
+        """
+        to_user = self._prompt_existing_username(f"Share {label} with username: ")
         if not to_user:
             return
 
@@ -788,8 +792,11 @@ class GuildQuestApp:
         if not perm:
             return
 
-        camp.share_with(to_user, perm)
-        print("Shared.")
+        shareable.share_with(to_user, perm)
+        print(f"Shared {label}.")
+
+    def _share_campaign(self, camp: Campaign) -> None:
+        self._apply_share(camp, "campaign")
 
     def _unshare_campaign(self, camp: Campaign) -> None:
         to_user = input("Unshare with username: ").strip()
@@ -990,13 +997,8 @@ class GuildQuestApp:
         print("Applied inventory changes.")
 
     def _share_event(self, e: QuestEvent) -> None:
-        to_user = self._prompt_existing_username("Share event with username: ")
-        if not to_user:
-            return
+        self._apply_share(e, "event")
 
-        perm = self._prompt_permission_level()
-        if not perm:
-            return
 
         e.share_with(to_user, perm)
         print("Shared event.")
