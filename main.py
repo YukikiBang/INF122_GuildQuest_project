@@ -749,19 +749,30 @@ class GuildQuestApp:
             elif c == "0":
                 return
 
-    def _share_campaign(self, camp: Campaign) -> None:
-        if not self.users:
-            print("No users exist.")
-            return
-        to_user = input("Share with username: ").strip()
-        if to_user not in self.users:
+    def _prompt_existing_username(self, prompt: str) -> Optional[str]:
+        username = input(prompt).strip()
+        if username not in self.users:
             print("User not found.")
-            return
+            return None
+        return username
+
+    def _prompt_permission_level(self) -> Optional[PermissionLevel]:
         p = input("Permission (VIEW_ONLY/COLLABORATIVE): ").strip().upper()
         if p not in PermissionLevel.__members__:
             print("Invalid permission.")
+            return None
+        return PermissionLevel[p]
+
+    def _share_campaign(self, camp: Campaign) -> None:
+        to_user = self._prompt_existing_username("Share with username: ")
+        if not to_user:
             return
-        camp.share_with(to_user, PermissionLevel[p])
+
+        perm = self._prompt_permission_level()
+        if not perm:
+            return
+
+        camp.share_with(to_user, perm)
         print("Shared.")
 
     def _unshare_campaign(self, camp: Campaign) -> None:
@@ -963,15 +974,15 @@ class GuildQuestApp:
         print("Applied inventory changes.")
 
     def _share_event(self, e: QuestEvent) -> None:
-        to_user = input("Share event with username: ").strip()
-        if to_user not in self.users:
-            print("User not found.")
+        to_user = self._prompt_existing_username("Share event with username: ")
+        if not to_user:
             return
-        p = input("Permission (VIEW_ONLY/COLLABORATIVE): ").strip().upper()
-        if p not in PermissionLevel.__members__:
-            print("Invalid permission.")
+
+        perm = self._prompt_permission_level()
+        if not perm:
             return
-        e.share_with(to_user, PermissionLevel[p])
+
+        e.share_with(to_user, perm)
         print("Shared event.")
 
     def _unshare_event(self, e: QuestEvent) -> None:
