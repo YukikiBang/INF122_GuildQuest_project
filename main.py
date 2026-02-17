@@ -5,8 +5,6 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
 
 # Enums
 
@@ -48,6 +46,39 @@ class ExitCommand(Command):
     def execute(self, app: "GuildQuestApp") -> None:
         print("Bye!")
         raise SystemExit
+
+
+
+# Time Model
+@dataclass(frozen=True)
+class WorldClockTime:
+    day: int
+    hour: int
+    minute: int
+
+    def __post_init__(self) -> None:
+        if self.day < 0:
+            raise ValueError("day must be >= 0")
+        if not (0 <= self.hour <= 23):
+            raise ValueError("hour must be 0..23")
+        if not (0 <= self.minute <= 59):
+            raise ValueError("minute must be 0..59")
+
+    def to_minutes(self) -> int:
+        return self.day * 24 * 60 + self.hour * 60 + self.minute
+
+    def plus_minutes(self, delta: int) -> "WorldClockTime":
+        total = self.to_minutes() + delta
+        if total < 0:
+            raise ValueError("time cannot go negative")
+        day = total // (24 * 60)
+        rem = total % (24 * 60)
+        hour = rem // 60
+        minute = rem % 60
+        return WorldClockTime(day=day, hour=hour, minute=minute)
+
+    def __str__(self) -> str:
+        return f"Day {self.day} {self.hour:02d}:{self.minute:02d}"
 
 @dataclass
 class Menu:
@@ -102,37 +133,6 @@ RANGE_STRATEGIES: dict[TimeRangeType, TimeRangeStrategy] = {
 
 
 
-# Time Model
-@dataclass(frozen=True)
-class WorldClockTime:
-    day: int
-    hour: int
-    minute: int
-
-    def __post_init__(self) -> None:
-        if self.day < 0:
-            raise ValueError("day must be >= 0")
-        if not (0 <= self.hour <= 23):
-            raise ValueError("hour must be 0..23")
-        if not (0 <= self.minute <= 59):
-            raise ValueError("minute must be 0..59")
-
-    def to_minutes(self) -> int:
-        return self.day * 24 * 60 + self.hour * 60 + self.minute
-
-    def plus_minutes(self, delta: int) -> "WorldClockTime":
-        total = self.to_minutes() + delta
-        if total < 0:
-            raise ValueError("time cannot go negative")
-        day = total // (24 * 60)
-        rem = total % (24 * 60)
-        hour = rem // 60
-        minute = rem % 60
-        return WorldClockTime(day=day, hour=hour, minute=minute)
-
-    def __str__(self) -> str:
-        return f"Day {self.day} {self.hour:02d}:{self.minute:02d}"
-
 # Realm / Settings
 
 @dataclass
@@ -165,6 +165,20 @@ class Settings:
     def set_time_display(self, pref: TimeDisplayPreference) -> None:
         self.time_display = pref
 
+class TimeDisplayFormatter:
+    def format_start(self, user: "User", realm: Optional["Realm"], start_time: WorldClockTime) -> str:
+        realm_name = realm.name if realm else "UnknownRealm"
+
+        world_str = str(start_time)
+        local_str = str(realm.time_rule.to_local(start_time)) if realm else world_str
+
+        pref = user.settings.time_display
+        if pref == TimeDisplayPreference.WORLD:
+            return world_str
+        elif pref == TimeDisplayPreference.LOCAL:
+            return f"{local_str} ({realm_name})"
+        else:  # BOTH
+            return f"{world_str} | {local_str} ({realm_name})"
 
 # RPG Domain
 
@@ -343,6 +357,8 @@ class GuildQuestApp:
         self.characters: Dict[str, Character] = {}
         self._id_counters: Dict[str, int] = {"realm": 1, "campaign": 1, "event": 1, "char": 1}
         self.current_user: Optional[str] = None
+        self.time_formatter = TimeDisplayFormatter()
+
 
     # ---------- ID helpers ----------
     def _new_id(self, kind: str, prefix: str) -> str:
@@ -1012,22 +1028,10 @@ class GuildQuestApp:
             return
 
         for e in events:
-            # permission: campaign permission OR event share permission (event share lets user see that event alone)
-            # Here: since we're in a campaign view, user can already view campaign.
             realm = self.realms.get(e.realm_id)
-            realm_name = realm.name if realm else e.realm_id
-
-            world_str = str(e.start_time)
-            local_str = str(realm.time_rule.to_local(e.start_time)) if realm else world_str
-
-            if user.settings.time_display == TimeDisplayPreference.WORLD:
-                t = world_str
-            elif user.settings.time_display == TimeDisplayPreference.LOCAL:
-                t = f"{local_str} ({realm_name})"
-            else:
-                t = f"{world_str} | {local_str} ({realm_name})"
-
+            t = self.time_formatter.format_start(user, realm, e.start_time)
             print(f"- {e.event_id}: {e.name} @ {t}")
+
 
     def _get_campaign_events_by_range(self, camp: Campaign, range_type: TimeRangeType, anchor: WorldClockTime) -> List[QuestEvent]:
         strat = RANGE_STRATEGIES[range_type]
