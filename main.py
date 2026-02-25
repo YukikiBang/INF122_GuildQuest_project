@@ -5,6 +5,8 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 from abc import ABC, abstractmethod
+from typing import Callable
+
 
 # Enums
 
@@ -361,6 +363,22 @@ def _parse_time(label: str) -> WorldClockTime:
 
 
 class GuildQuestApp:
+    ID_PREFIX = {
+        "realm": "R",
+        "campaign": "P",
+        "event": "E",
+        "char": "C",
+    }
+
+    def _new_id(self, kind: str) -> str:
+        if kind not in self.ID_PREFIX:
+            raise ValueError(f"Unknown id kind: {kind}")
+
+        prefix = self.ID_PREFIX[kind]
+        n = self._id_counters.get(kind, 1)
+        self._id_counters[kind] = n + 1
+        return f"{prefix}{n}"
+    
     def __init__(self) -> None:
         self.users: Dict[str, User] = {}
         self.realms: Dict[str, Realm] = {}
@@ -370,13 +388,6 @@ class GuildQuestApp:
         self._id_counters: Dict[str, int] = {"realm": 1, "campaign": 1, "event": 1, "char": 1}
         self.current_user: Optional[str] = None
         self.time_formatter = TimeDisplayFormatter()
-
-
-    # ---------- ID helpers ----------
-    def _new_id(self, kind: str, prefix: str) -> str:
-        n = self._id_counters.get(kind, 1)
-        self._id_counters[kind] = n + 1
-        return f"{prefix}{n}"
 
     # ---------- Persistence ----------
     def save(self, path: str = "guildquest_data.json") -> None:
@@ -532,7 +543,7 @@ class GuildQuestApp:
     def ensure_default_realm(self) -> None:
         if self.realms:
             return
-        rid = self._new_id("realm", "R")
+        rid = self._new_id("realm")
         self.realms[rid] = Realm(realm_id=rid, name="Earth", description="Default realm", map_id=1,
                                  time_rule=RealmTimeRule(offset_minutes=0))
         print("Created default realm: Earth (R1)")
@@ -578,7 +589,7 @@ class GuildQuestApp:
             print(f"- {r.realm_id}: {r.name} (offset {off} min) desc='{r.description}'")
 
     def create_realm(self) -> None:
-        rid = self._new_id("realm", "R")
+        rid = self._new_id("realm")
         name = input("Realm name: ").strip()
         desc = input("Description (optional): ").strip()
         map_id = _safe_int("mapID (int, optional, default 0): ", 0, None)
@@ -640,7 +651,7 @@ class GuildQuestApp:
         user = self.require_login()
         if not user:
             return
-        cid = self._new_id("char", "C")
+        cid = self._new_id("char")
         name = input("Character name: ").strip()
         cls = input("Class: ").strip()
         level = _read_level()
@@ -714,14 +725,12 @@ class GuildQuestApp:
         user = self.require_login()
         if not user:
             return
-        cid = self._new_id("campaign", "P")
+        cid = self._new_id("campaign")
         name = input("Campaign name: ").strip() or cid
         camp = Campaign(campaign_id=cid, owner_username=user.username, name=name)
         self.campaigns[cid] = camp
         user.campaign_ids.append(cid)
         print(f"Created campaign {cid}: {camp.name}")
-
-    from typing import Callable
 
     def _pick_campaign(
         self,
@@ -857,7 +866,7 @@ class GuildQuestApp:
                 return
 
     def add_event_to_campaign(self, camp: Campaign) -> None:
-        eid = self._new_id("event", "E")
+        eid = self._new_id("event")
         name = input("Event name: ").strip() or eid
         start = _parse_time("START")
         end_opt = input("Has end time? (y/n): ").strip().lower()
@@ -1017,10 +1026,6 @@ class GuildQuestApp:
 
     def _share_event(self, e: QuestEvent) -> None:
         self._apply_share(e, "event")
-
-
-        e.share_with(to_user, perm)
-        print("Shared event.")
 
     def _unshare_event(self, e: QuestEvent) -> None:
         to_user = input("Unshare event with username: ").strip()
